@@ -37,7 +37,6 @@ def send_mail_html(subject, body):
 
 def main():
     log.info("Started...")
-    
     config = ConfigParser.SafeConfigParser()
     config.read(os.path.expanduser('~/.Kumamon'))
     connect = config.get('Database','Connect')
