@@ -47,33 +47,39 @@ def main():
     cur.execute(sql)
     banks = cur.fetchall()   
     for bank in banks:
-        log.info("Downloading: " + " " + bank['description'])
-        GlobalConfig = OfxConfig()
-        a = GlobalConfig.account(bank['id'])
-        ofxdata = a.download(days=0)
-        f = open(os.path.expanduser('~/tmp/ofxdata.tmp'), 'w')
-        f.write(ofxdata.read())
-        f.close()
-        f = open(os.path.expanduser('~/tmp/ofxdata.tmp'), 'r')
-        parsed = OfxParser.parse(f)
-        f.close()
-        log.info("OfxParser complete")
-        positions = {}
-        for pos in parsed.account.statement.positions:
-            positions[pos.security] = round(pos.units * pos.unit_price, 2)
-            log.info("Downloaded: " + str(bank['description']) + " " + str(pos.security))
-        
-        sql = "select * from accounts where type=" + str(bank['type']);
-        cur.execute(sql)
-        accounts = cur.fetchall()
-        for account in accounts:
-            if account['name'] not in positions:
-                raise Exception('account ' + account['name'] + ' not present in download')
-            log.info( bank['description'] + '\t' + account['name_local'] + '\t' + str(positions[account['name']]) ) 
-            sql = "update portfolio set value=" + str(positions[account['name']]) + "where symbol='" + account['name_local'] + "'"
+        try:
+            log.info("Downloading: " + " " + bank['description'])
+            GlobalConfig = OfxConfig()
+            a = GlobalConfig.account(bank['id'])
+            ofxdata = a.download(days=0)
+            f = open(os.path.expanduser('~/tmp/ofxdata.tmp'), 'w')
+            f.write(ofxdata.read())
+            f.close()
+            f = open(os.path.expanduser('~/tmp/ofxdata.tmp'), 'r')
+            parsed = OfxParser.parse(f)
+            f.close()
+            log.info("OfxParser complete")
+            positions = {}
+            for pos in parsed.account.statement.positions:
+                positions[pos.security] = round(pos.units * pos.unit_price, 2)
+                log.info("Downloaded: " + str(bank['description']) + " " + str(pos.security))
+            
+            sql = "select * from accounts where type=" + str(bank['type']);
             cur.execute(sql)
-            conn.commit()
-            log.info("Set: " + str(account['name_local']))
+            accounts = cur.fetchall()
+            for account in accounts:
+                if account['name'] not in positions:
+                    raise Exception('account ' + account['name'] + ' not present in download')
+                log.info( bank['description'] + '\t' + account['name_local'] + '\t' + str(positions[account['name']]) ) 
+                sql = "update constituents set value=" + str(positions[account['name']]) + "where symbol='" + account['name_local'] + "'"
+                cur.execute(sql)
+                conn.commit()
+                log.info("Set: " + str(account['name_local']))
+                
+        except Exception as err:
+            log.exception(err)
+            log.error("Failed loading for bank: " + bank['description'])
+            send_mail_html("FAILURE:  Ofxdownload.py", str( err ) )        
     
     # Close the db
     cur.close()
